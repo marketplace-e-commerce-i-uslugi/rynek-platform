@@ -1,0 +1,11 @@
+**/target
+**/node_modules
+**/dist
+**/.angular
+**/.git
+**/.idea
+**/.vscode
+**/*.iml
+rynek-vault
+rynek-docs
+rynek-contracts

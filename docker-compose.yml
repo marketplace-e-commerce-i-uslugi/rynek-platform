@@ -1,0 +1,289 @@
+# Rynek: cała platforma jedną komendą (wariant A).
+#   git clone --recurse-submodules https://github.com/marketplace-e-commerce-i-uslugi/rynek-platform.git
+#   cd rynek-platform
+#   docker compose up -d            # ściąga gotowe obrazy z ghcr.io
+#   docker compose up -d --build    # buduje obrazy z kodu w submodułach
+# Aplikacja: http://localhost:4200, brama: http://localhost:8080. Wymaga ok. 8 GB pamięci dla Dockera.
+name: rynek
+
+# Adresy serwisów w sieci compose. Domyślne wartości w kodzie wskazują localhost, więc tu je nadpisujemy.
+x-env: &env
+  JAVA_TOOL_OPTIONS: ${JAVA_TOOL_OPTIONS:--Xmx256m -Xss512k -XX:+UseSerialGC -XX:TieredStopAtLevel=1}
+  REDIS_HOST: redis
+  OPENSEARCH_URL: http://opensearch:9200
+  IDENTITY_SERVICE_URL: http://identity-service:8081
+  CHANNEL_SERVICE_URL: http://channel-service:8082
+  CATALOG_SERVICE_URL: http://catalog-service:8083
+  MEDIA_SERVICE_URL: http://media-service:8084
+  TIKTOK_INTEGRATION_SERVICE_URL: http://tiktok-integration-service:8085
+  TIKTOK_SERVICE_URL: http://tiktok-integration-service:8085
+  FEED_SERVICE_URL: http://feed-service:8086
+  SEARCH_SERVICE_URL: http://search-service:8087
+  ENGAGEMENT_SERVICE_URL: http://engagement-service:8088
+  CHAT_SERVICE_URL: http://chat-service:8089
+  CHAT_SERVICE_WS_URL: ws://chat-service:8089
+  CART_SERVICE_URL: http://cart-service:8090
+  ORDER_SERVICE_URL: http://order-service:8091
+  PAYMENT_SERVICE_URL: http://payment-service:8092
+  BOOKING_SERVICE_URL: http://booking-service:8093
+  SHIPPING_SERVICE_URL: http://shipping-service:8094
+  NOTIFICATION_SERVICE_URL: http://notification-service:8095
+  ANALYTICS_SERVICE_URL: http://analytics-service:8096
+  S3_ENDPOINT: http://seaweedfs:8333
+  S3_PUBLIC_ENDPOINT: http://localhost:8333
+
+x-java: &java
+  restart: unless-stopped
+  depends_on:
+    postgres: { condition: service_healthy }
+    redis: { condition: service_healthy }
+
+services:
+  # ---------- infrastruktura ----------
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    command: ["postgres", "-c", "max_connections=300"]
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - ./rynek-infra/local/postgres/init:/docker-entrypoint-initdb.d:ro
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  seaweedfs:
+    image: chrislusf/seaweedfs:3.97
+    restart: unless-stopped
+    command: server -dir=/data -s3 -s3.config=/etc/seaweedfs/s3.json
+    ports:
+      - "8333:8333"
+    volumes:
+      - ./rynek-infra/local/seaweedfs/s3.json:/etc/seaweedfs/s3.json:ro
+      - seaweedfs-data:/data
+
+  opensearch:
+    image: opensearchproject/opensearch:2.19.1
+    restart: unless-stopped
+    environment:
+      discovery.type: single-node
+      DISABLE_SECURITY_PLUGIN: "true"
+      DISABLE_INSTALL_DEMO_CONFIG: "true"
+      OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
+      bootstrap.memory_lock: "false"
+    ulimits:
+      nofile: { soft: 65536, hard: 65536 }
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -qE '\"status\":\"(green|yellow)\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  # ---------- brama i frontend ----------
+  api-gateway:
+    <<: *java
+    image: ${REGISTRY:-ghcr.io/marketplace-e-commerce-i-uslugi}/rynek-api-gateway:${TAG:-latest}
+    build: { context: ./rynek-api-gateway, dockerfile: ../docker/service.Dockerfile }
+    ports: ["8080:8080"]
+    environment:
+      <<: *env
+      JWT_ENFORCE: ${JWT_ENFORCE:-false}
+
+  frontend:
+    image: ${REGISTRY:-ghcr.io/marketplace-e-commerce-i-uslugi}/rynek-frontend:${TAG:-latest}
+    build: { context: ./rynek-frontend, dockerfile: ../docker/frontend.Dockerfile }
+    restart: unless-stopped
+    depends_on: [api-gateway]
+    ports: ["4200:80"]
+    environment:
+      GATEWAY_URL: http://api-gateway:8080
+
+  # ---------- serwisy ----------
+  identity-service:
+    <<: *java
+    image: ${REGISTRY:-ghcr.io/marketplace-e-commerce-i-uslugi}/rynek-identity-service:${TAG:-latest}
+    build: { context: ./rynek-identity-service, dockerfile: ../docker/service.Dockerfile }
+    environment:
+      <<: *env
+      DB_URL: jdbc:postgresql://postgres:5432/identity
+      DB_USER: identity
+      DB_PASSWORD: identity
+
+  channel-service:
+    <<: *java
+    image: ${REGISTRY:-ghcr.io/marketplace-e-commerce-i-uslugi}/rynek-channel-service:${TAG:-latest}
+    build: { context: ./rynek-channel-service, dockerfile: ../docker/service.Dockerfile }
+    environment:
+      <<: *env
+      DB_URL: jdbc:postgresql://postgres:5432/channel
+      DB_USER: channel
+      DB_PASSWORD: channel
+
+  catalog-service:
+    <<: *java
+    image: ${REGISTRY:-ghcr.io/marketplace-e-commerce-i-uslugi}/rynek-catalog-service:${TAG:-latest}
+    build: { context: ./rynek-catalog-service, dockerfile: ../docker/service.Dockerfile }
+    environment:
+      <<: *env
+      DB_URL: jdbc:postgresql://postgres:5432/catalog
+      DB_USER: catalog
+      DB_PASSWORD: catalog
+
+  media-service:
+    <<: *java
+    image: ${REGISTRY:-ghcr.io/marketplace-e-commerce-i-uslugi}/rynek-media-service:${TAG:-latest}
+    build: { context: ./rynek-media-service, dockerfile: ../docker/service.Dockerfile }
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      seaweedfs: { condition: service_started }
+    environment:
+      <<: *env
+      DB_URL: jdbc:postgresql://postgres:5432/media
+      DB_USER: media
+      DB_PASSWORD: media
+
+  tiktok-integration-service:
+    <<: *java
+    image: ${REGISTRY:-ghcr.io/marketplace-e-commerce-i-uslugi}/rynek-tiktok-integration-service:${TAG:-latest}
+    build: { context: ./rynek-tiktok-integration-service, dockerfile: ../docker/service.Dockerfile }
+    environment:
+      <<: *env
+      DB_URL: jdbc:postgresql://postgres:5432/tiktok
+      DB_USER: tiktok
+      DB_PASSWORD: tiktok
+
+  feed-service:
+    <<: *java
+    image: ${REGISTRY:-ghcr.io/marketplace-e-commerce-i-uslugi}/rynek-feed-service:${TAG:-latest}
+    build: { context: ./rynek-feed-service, dockerfile: ../docker/service.Dockerfile }
+    environment:
+      <<: *env
+      DB_URL: jdbc:postgresql://postgres:5432/feed
+      DB_USER: feed
+      DB_PASSWORD: feed
+
+  search-service:
+    <<: *java
+    image: ${REGISTRY:-ghcr.io/marketplace-e-commerce-i-uslugi}/rynek-search-service:${TAG:-latest}
+    build: { context: ./rynek-search-service, dockerfile: ../docker/service.Dockerfile }
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      opensearch: { condition: service_healthy }
+    environment:
+      <<: *env
+      DB_URL: jdbc:postgresql://postgres:5432/search
+      DB_USER: search
+      DB_PASSWORD: search
+
+  engagement-service:
+    <<: *java
+    image: ${REGISTRY:-ghcr.io/marketplace-e-commerce-i-uslugi}/rynek-engagement-service:${TAG:-latest}
+    build: { context: ./rynek-engagement-service, dockerfile: ../docker/service.Dockerfile }
+    environment:
+      <<: *env
+      DB_URL: jdbc:postgresql://postgres:5432/engagement
+      DB_USER: engagement
+      DB_PASSWORD: engagement
+
+  chat-service:
+    <<: *java
+    image: ${REGISTRY:-ghcr.io/marketplace-e-commerce-i-uslugi}/rynek-chat-service:${TAG:-latest}
+    build: { context: ./rynek-chat-service, dockerfile: ../docker/service.Dockerfile }
+    environment:
+      <<: *env
+      DB_URL: jdbc:postgresql://postgres:5432/chats
+      DB_USER: chats
+      DB_PASSWORD: chats
+
+  cart-service:
+    <<: *java
+    image: ${REGISTRY:-ghcr.io/marketplace-e-commerce-i-uslugi}/rynek-cart-service:${TAG:-latest}
+    build: { context: ./rynek-cart-service, dockerfile: ../docker/service.Dockerfile }
+    environment:
+      <<: *env
+      DB_URL: jdbc:postgresql://postgres:5432/cart
+      DB_USER: cart
+      DB_PASSWORD: cart
+
+  order-service:
+    <<: *java
+    image: ${REGISTRY:-ghcr.io/marketplace-e-commerce-i-uslugi}/rynek-order-service:${TAG:-latest}
+    build: { context: ./rynek-order-service, dockerfile: ../docker/service.Dockerfile }
+    environment:
+      <<: *env
+      DB_URL: jdbc:postgresql://postgres:5432/orders
+      DB_USER: orders
+      DB_PASSWORD: orders
+
+  payment-service:
+    <<: *java
+    image: ${REGISTRY:-ghcr.io/marketplace-e-commerce-i-uslugi}/rynek-payment-service:${TAG:-latest}
+    build: { context: ./rynek-payment-service, dockerfile: ../docker/service.Dockerfile }
+    environment:
+      <<: *env
+      DB_URL: jdbc:postgresql://postgres:5432/payments
+      DB_USER: payments
+      DB_PASSWORD: payments
+
+  booking-service:
+    <<: *java
+    image: ${REGISTRY:-ghcr.io/marketplace-e-commerce-i-uslugi}/rynek-booking-service:${TAG:-latest}
+    build: { context: ./rynek-booking-service, dockerfile: ../docker/service.Dockerfile }
+    environment:
+      <<: *env
+      DB_URL: jdbc:postgresql://postgres:5432/bookings
+      DB_USER: bookings
+      DB_PASSWORD: bookings
+
+  shipping-service:
+    <<: *java
+    image: ${REGISTRY:-ghcr.io/marketplace-e-commerce-i-uslugi}/rynek-shipping-service:${TAG:-latest}
+    build: { context: ./rynek-shipping-service, dockerfile: ../docker/service.Dockerfile }
+    environment:
+      <<: *env
+      DB_URL: jdbc:postgresql://postgres:5432/shipping
+      DB_USER: shipping
+      DB_PASSWORD: shipping
+
+  notification-service:
+    <<: *java
+    image: ${REGISTRY:-ghcr.io/marketplace-e-commerce-i-uslugi}/rynek-notification-service:${TAG:-latest}
+    build: { context: ./rynek-notification-service, dockerfile: ../docker/service.Dockerfile }
+    environment:
+      <<: *env
+      DB_URL: jdbc:postgresql://postgres:5432/notifications
+      DB_USER: notifications
+      DB_PASSWORD: notifications
+
+  analytics-service:
+    <<: *java
+    image: ${REGISTRY:-ghcr.io/marketplace-e-commerce-i-uslugi}/rynek-analytics-service:${TAG:-latest}
+    build: { context: ./rynek-analytics-service, dockerfile: ../docker/service.Dockerfile }
+    environment:
+      <<: *env
+      DB_URL: jdbc:postgresql://postgres:5432/analytics
+      DB_USER: analytics
+      DB_PASSWORD: analytics
+
+volumes:
+  postgres-data:
+  seaweedfs-data:
+  opensearch-data:

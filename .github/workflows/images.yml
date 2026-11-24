@@ -1,0 +1,135 @@
+name: Obrazy Dockera
+
+# Buduje obrazy serwisów, frontendu i obraz all-in-one i publikuje je w ghcr.io organizacji.
+# Uruchamia się:
+#  - gdy dowolne repozytorium Rynku zgłosi zmianę (repository_dispatch z workflow notify-platform.yml),
+#  - po pushu do tego repozytorium,
+#  - co godzinę, jako zabezpieczenie na wypadek zgubionego zgłoszenia,
+#  - ręcznie.
+on:
+  repository_dispatch:
+    types: [submodule-updated]
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+# Nowy przebieg zastępuje trwający, żeby seria szybkich pushy nie kolejkowała kilkunastu budowań.
+concurrency:
+  group: images
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  OWNER: ${{ github.repository_owner }}
+
+jobs:
+  bump:
+    name: Podbij submoduły
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          submodules: true
+      - name: Pobierz najnowsze commity submodułów
+        run: |
+          git submodule update --init --remote
+          if git diff --quiet; then
+            echo "Submoduły są aktualne."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Aktualizacja submodułów (${{ github.event.client_payload.repo || 'harmonogram' }})"
+          git push origin HEAD:main
+
+  services:
+    name: ${{ matrix.repo }}
+    needs: bump
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        repo:
+          - rynek-api-gateway
+          - rynek-identity-service
+          - rynek-channel-service
+          - rynek-catalog-service
+          - rynek-media-service
+          - rynek-tiktok-integration-service
+          - rynek-feed-service
+          - rynek-search-service
+          - rynek-engagement-service
+          - rynek-chat-service
+          - rynek-cart-service
+          - rynek-order-service
+          - rynek-payment-service
+          - rynek-booking-service
+          - rynek-shipping-service
+          - rynek-notification-service
+          - rynek-analytics-service
+          - rynek-frontend
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          submodules: recursive
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Wybierz Dockerfile
+        id: df
+        run: |
+          if [ "${{ matrix.repo }}" = "rynek-frontend" ]; then
+            echo "file=docker/frontend.Dockerfile" >> "$GITHUB_OUTPUT"
+          else
+            echo "file=docker/service.Dockerfile" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.repo }}
+          file: ${{ steps.df.outputs.file }}
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.OWNER }}/${{ matrix.repo }}:latest
+            ${{ env.REGISTRY }}/${{ env.OWNER }}/${{ matrix.repo }}:${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.repo }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.repo }}
+
+  demo:
+    name: rynek-demo (all-in-one)
+    needs: bump
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          submodules: recursive
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/demo.Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.OWNER }}/rynek-demo:latest
+            ${{ env.REGISTRY }}/${{ env.OWNER }}/rynek-demo:${{ github.sha }}
+          cache-from: type=gha,scope=rynek-demo
+          cache-to: type=gha,mode=max,scope=rynek-demo

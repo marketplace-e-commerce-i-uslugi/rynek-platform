@@ -1,0 +1,84 @@
+[submodule "rynek-api-gateway"]
+	path = rynek-api-gateway
+	url = https://github.com/marketplace-e-commerce-i-uslugi/rynek-api-gateway.git
+	branch = main
+[submodule "rynek-identity-service"]
+	path = rynek-identity-service
+	url = https://github.com/marketplace-e-commerce-i-uslugi/rynek-identity-service.git
+	branch = main
+[submodule "rynek-channel-service"]
+	path = rynek-channel-service
+	url = https://github.com/marketplace-e-commerce-i-uslugi/rynek-channel-service.git
+	branch = main
+[submodule "rynek-catalog-service"]
+	path = rynek-catalog-service
+	url = https://github.com/marketplace-e-commerce-i-uslugi/rynek-catalog-service.git
+	branch = main
+[submodule "rynek-media-service"]
+	path = rynek-media-service
+	url = https://github.com/marketplace-e-commerce-i-uslugi/rynek-media-service.git
+	branch = main
+[submodule "rynek-tiktok-integration-service"]
+	path = rynek-tiktok-integration-service
+	url = https://github.com/marketplace-e-commerce-i-uslugi/rynek-tiktok-integration-service.git
+	branch = main
+[submodule "rynek-feed-service"]
+	path = rynek-feed-service
+	url = https://github.com/marketplace-e-commerce-i-uslugi/rynek-feed-service.git
+	branch = main
+[submodule "rynek-search-service"]
+	path = rynek-search-service
+	url = https://github.com/marketplace-e-commerce-i-uslugi/rynek-search-service.git
+	branch = main
+[submodule "rynek-engagement-service"]
+	path = rynek-engagement-service
+	url = https://github.com/marketplace-e-commerce-i-uslugi/rynek-engagement-service.git
+	branch = main
+[submodule "rynek-chat-service"]
+	path = rynek-chat-service
+	url = https://github.com/marketplace-e-commerce-i-uslugi/rynek-chat-service.git
+	branch = main
+[submodule "rynek-cart-service"]
+	path = rynek-cart-service
+	url = https://github.com/marketplace-e-commerce-i-uslugi/rynek-cart-service.git
+	branch = main
+[submodule "rynek-order-service"]
+	path = rynek-order-service
+	url = https://github.com/marketplace-e-commerce-i-uslugi/rynek-order-service.git
+	branch = main
+[submodule "rynek-payment-service"]
+	path = rynek-payment-service
+	url = https://github.com/marketplace-e-commerce-i-uslugi/rynek-payment-service.git
+	branch = main
+[submodule "rynek-booking-service"]
+	path = rynek-booking-service
+	url = https://github.com/marketplace-e-commerce-i-uslugi/rynek-booking-service.git
+	branch = main
+[submodule "rynek-shipping-service"]
+	path = rynek-shipping-service
+	url = https://github.com/marketplace-e-commerce-i-uslugi/rynek-shipping-service.git
+	branch = main
+[submodule "rynek-notification-service"]
+	path = rynek-notification-service
+	url = https://github.com/marketplace-e-commerce-i-uslugi/rynek-notification-service.git
+	branch = main
+[submodule "rynek-analytics-service"]
+	path = rynek-analytics-service
+	url = https://github.com/marketplace-e-commerce-i-uslugi/rynek-analytics-service.git
+	branch = main
+[submodule "rynek-frontend"]
+	path = rynek-frontend
+	url = https://github.com/marketplace-e-commerce-i-uslugi/rynek-frontend.git
+	branch = main
+[submodule "rynek-infra"]
+	path = rynek-infra
+	url = https://github.com/marketplace-e-commerce-i-uslugi/rynek-infra.git
+	branch = main
+[submodule "rynek-contracts"]
+	path = rynek-contracts
+	url = https://github.com/marketplace-e-commerce-i-uslugi/rynek-contracts.git
+	branch = main
+[submodule "rynek-docs"]
+	path = rynek-docs
+	url = https://github.com/marketplace-e-commerce-i-uslugi/rynek-docs.git
+	branch = main

@@ -1,0 +1,7 @@
+# Skrypty i pliki konfiguracyjne trafiają do kontenerów Linuksa, więc muszą mieć końce linii LF także na Windowsie.
+* text=auto
+*.sh text eol=lf
+*.conf text eol=lf
+*.template text eol=lf
+Dockerfile text eol=lf
+*.Dockerfile text eol=lf
